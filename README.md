@@ -66,4 +66,4 @@ MIT —— 详见 [LICENSE](./LICENSE)。
 
 ## 👤 作者
 
-tyxackr · 克拉玛依市气象台
+克拉玛依市气象局 仝爽
