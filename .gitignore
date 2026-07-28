@@ -1,0 +1,36 @@
+# 系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# 编辑器
+.vscode/
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node
+node_modules/
+npm-debug.log
+
+# 日志 / 临时
+*.log
+*.tmp
+*.bak
+*.bak.*
+
+# 本地配置（避免泄露）
+.env
+.env.local
+config.local.*
+
+# 模板库运行时数据（不应进仓库）
+*.jsonl.local
