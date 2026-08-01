@@ -78,8 +78,6 @@ boxes = page['rec_boxes']    # np.ndarray shape=(N, 4) 矩形 [x1,y1,x2,y2]
 - ✅ `rec_texts` / `rec_scores` / `rec_boxes`（复数）
 - ❌ 不是 `rec_text` / `rec_score` / `rec_box`（老版本）
 
-### 
-
 ### 已知问题
 
 - **paddlepaddle 3.3.x 不能用** —— 必须 3.2.2
@@ -120,6 +118,7 @@ boxes = page['rec_boxes']    # np.ndarray shape=(N, 4) 矩形 [x1,y1,x2,y2]
 
 | 日期 | 修订 | 触发 |
 |------|------|------|
+| 2026-08-01 20:02 | 修订：删除老板 GitHub 版本遗留下的 `### ` 空标题（L81） | 报告瑕疵后老板指令"修复，并上传" |
 | 2026-08-01 19:48 | 重大修订：删除 SOP-A · 强制重新读图 / SOP-B · 二次怀疑机制 / SOP-C · 雪球效应熔断器 三个章节 | 老板指令："把 OCR skill 的 sop 全部去除"，后续精修"只删 SOP-A/B/C，其余不删" |
 | 2026-08-01 19:21 | **切换 OCR 工具**：RapidOCR → PaddleOCR 3.x；新增安装/调用/字段名规范；强调 `paddlepaddle==3.2.2` workaround | 老板指令："修改 skill，使用 paddleocr 识图" |
 | 2026-08-01 | 初版：基于 RapidOCR + MiniMax-VL | 老板指令：拆分 audit skill |
