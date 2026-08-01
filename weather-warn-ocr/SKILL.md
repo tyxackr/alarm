@@ -13,7 +13,7 @@ metadata:
 # 气象预警 OCR 子 Skill（2026-08-01 切换 PaddleOCR）
 
 由主 skill `weather-warn-pipeline` 派发。
-**只**负责读图 + 逐字段 OCR + 生成 Frozen Facts。
+**只**负责读图 + 调用Paddle OCR工具 逐字段 OCR + 生成 Frozen Facts。
 
 **OCR 工具**：PaddleOCR 3.x + paddlepaddle 3.2.2（CPU 推理）。
 
@@ -25,7 +25,7 @@ metadata:
 
 | Step | 动作 | 说明 |
 |------|------|------|
-| **Step 0** | 重新读取图片 | 用 `read` 工具重新读图，**不依赖短时记忆** |
+| **Step 0** | 读取图片 | 用 `Paddle OCR` 工具读图，禁止使用其他方式读图 |
 | **Step 1** | 逐字段 OCR | 14 个字段（含 `warn_id`）逐个 OCR |
 | **Step 2** | 生成 Frozen Facts | 按主 skill 字段定义整理为 JSON |
 | **Step 3** | 冻结 | OCR 结果**立即冻结**，**不得再修改** |
@@ -78,10 +78,7 @@ boxes = page['rec_boxes']    # np.ndarray shape=(N, 4) 矩形 [x1,y1,x2,y2]
 - ✅ `rec_texts` / `rec_scores` / `rec_boxes`（复数）
 - ❌ 不是 `rec_text` / `rec_score` / `rec_box`（老版本）
 
-### 耗时参考
-
-- 初始化 ~5s · 推理 **~25s/单图**（vs RapidOCR ~4s · 慢 6 倍）
-- 细节更准（37℃ 无重复符号、标题不截断）
+### 
 
 ### 已知问题
 
