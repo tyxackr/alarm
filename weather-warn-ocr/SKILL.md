@@ -114,24 +114,6 @@ boxes = page['rec_boxes']    # np.ndarray shape=(N, 4) 矩形 [x1,y1,x2,y2]
 
 🚨 **铁律**：时间 ISO 8601+时区 · 模糊字段 `null` 或 `[无法确认]` · 必带 `platform_comments_excluded` + `ocr_confidence`。
 
-## SOP-A · 强制重新读图（最重要）
-
-每次输出 JSON 前**必须**重新跑 OCR，**不依赖短时记忆**。
-
-## SOP-B · 二次怀疑机制
-
-每报告一个字段前自问：
-
-1. **"我是真的从图里读到的吗？还是我猜的？"**
-2. **"OCR 置信度 < 0.85 怎么办？"**
-
-🚨 1 个没把握 → 不写入 JSON。置信度 < 0.85 → 标 `low` 或 `[无法确认]`。
-
-## SOP-C · 雪球效应熔断器
-
-- 一旦**找证据支持假设**（而非客观比对），立即停止
-- 触发关键词警觉 ⚠️："果然……""确实……""这正是……"
-
 ## 触发场景
 
 - **由主 skill `weather-warn-pipeline` 派发**（`taskName="ocr-{warn_id}"`）
@@ -141,5 +123,6 @@ boxes = page['rec_boxes']    # np.ndarray shape=(N, 4) 矩形 [x1,y1,x2,y2]
 
 | 日期 | 修订 | 触发 |
 |------|------|------|
+| 2026-08-01 19:48 | 重大修订：删除 SOP-A · 强制重新读图 / SOP-B · 二次怀疑机制 / SOP-C · 雪球效应熔断器 三个章节 | 老板指令："把 OCR skill 的 sop 全部去除"，后续精修"只删 SOP-A/B/C，其余不删" |
 | 2026-08-01 19:21 | **切换 OCR 工具**：RapidOCR → PaddleOCR 3.x；新增安装/调用/字段名规范；强调 `paddlepaddle==3.2.2` workaround | 老板指令："修改 skill，使用 paddleocr 识图" |
 | 2026-08-01 | 初版：基于 RapidOCR + MiniMax-VL | 老板指令：拆分 audit skill |
