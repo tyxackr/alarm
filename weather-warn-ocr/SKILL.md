@@ -1,6 +1,6 @@
 ---
 name: weather-warn-ocr
-description: "气象预警截图 OCR 子 skill：只负责读图 + 生成 Frozen Facts，不做审核、不查模板。"
+description: "气象预警截图 OCR 子 skill：用 PaddleOCR 3.x（paddlepaddle 3.2.2）做字符级 OCR，输出 Frozen Facts。"
 metadata:
   {
     "openclaw":
@@ -10,23 +10,18 @@ metadata:
   }
 ---
 
-# 气象预警 OCR 子 Skill（2026-08-01 新增）
+# 气象预警 OCR 子 Skill（2026-08-01 切换 PaddleOCR）
 
 由主 skill `weather-warn-pipeline` 派发。
 **只**负责读图 + 逐字段 OCR + 生成 Frozen Facts。
-**不做**审核 / **不做**模板对比 / **不做**报告生成。
+
+**OCR 工具**：PaddleOCR 3.x + paddlepaddle 3.2.2（CPU 推理）。
 
 ## 受 FACT LOCK / Evidence Priority 约束（引用主 skill）
 
-🚨 **铁律**：遵守主 skill 的 FACT LOCK（事实锁）+ Evidence Priority（证据优先级）。
+🚨 **铁律**：遵守主 skill 的 FACT LOCK + Evidence Priority。
 
-特别要点：
-- 图片 = 唯一事实来源（违反 = 整个审核失真）
-- OCR 完成 = 立即冻结（后续 audit / template 子 skill 不得修改）
-
-## 读图步骤（强制顺序 · Step0~Step4）
-
-🚨 **铁律**：必须按以下顺序执行，**不得跳步**：
+## 读图步骤（强制顺序 · Step0~Step4 · 不得跳步）
 
 | Step | 动作 | 说明 |
 |------|------|------|
@@ -38,43 +33,63 @@ metadata:
 
 ## OCR 输出约束
 
-🚨 **铁律**：OCR 阶段**禁止**以下行为：
-
-- ❌ 修改文字
-- ❌ 补全文字
-- ❌ 猜测模糊文字
-- ❌ 依据模板修改文字
-- ❌ 多数决覆盖图片
-
-处理原则：
+🚨 **禁止**：修改文字 / 补全 / 猜测模糊 / 依据模板修改 / 多数决覆盖图片。
 
 | 情形 | 处理 |
 |------|------|
 | 能确认 | **原样摘抄** |
-| 不能确认 | 输出 `null` 或 `[无法确认]` |
+| 不能确认 | `null` 或 `[无法确认]` |
 | 模糊 | **不得猜测** |
 
-🚨 **铁律**：OCR 结果**只能**从图片读出，**不得**从模板、案例、推理补全。
+## 预警内容读取边界（防读多内容 · 7/28 23:20 老板纠错）
 
-## 🚨 预警内容读取边界（防读多内容 · 7/28 23:20 老板纠错）
+**只摘抄**从「[气象台名]…发布[灾种][颜色]预警信号：」开始的实际预警文字。平台系统注释（行首 `*` 或 UI 提示）**不算正文**，必须在 JSON `platform_comments_excluded` 字段记录**已排除**的内容。
 
-**预警正文编辑框前几行常出现平台系统模板注释**（带 `*` 号），**不是**实际预警正文——必须**只摘抄**从「气象台发布…信号」开始的实际预警文字。
+## PaddleOCR 调用规范
 
-| 类别 | 特征 | 例子 |
-|------|------|------|
-| 平台系统注释 | 行首 `*` + 操作/界面提示 | `*请接收企业用户接入至固定二级再进行签发。` |
-| 平台系统注释 | 行首 `*` + UI 显示提示 | `*如接收预警地区右名字体，请滚动条拖拽，请核查。` |
+### 安装
 
-**读取铁律**（4 条）：
+```bash
+# 必须 paddlepaddle==3.2.2（3.3.x 有 OneDNN + PIR bug：NotImplementedError）
+# 见 GitHub Issue: PaddlePaddle/Paddle#77340 + PaddlePaddle/PaddleOCR#18162
+pip install --break-system-packages --ignore-installed PyYAML paddleocr paddlepaddle==3.2.2
+```
 
-1. 🚨 **只摘抄**从「[气象台名]…发布[灾种][颜色]预警信号：」开始的实际预警文字
-2. 🚨 **不**把平台注释算入字数
-3. 🚨 **不**对平台注释做错别字/语病/重复审核
-4. 🚨 **不**对平台注释报警
+### 调用
 
-🚨 OCR 完成后，必须在 JSON 输出里单列 `platform_comments_excluded` 字段记录**已排除**的平台注释（让主 agent 可追溯）。
+```python
+from paddleocr import PaddleOCR
 
-## 输出格式（Frozen Facts JSON）
+engine = PaddleOCR(
+    lang='ch',
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+)
+
+result = list(engine.predict(image_path))   # generator → list
+page = result[0]                            # 单图
+texts = page['rec_texts']    # list[str]   识别文本
+scores = page['rec_scores']  # list[float] 置信度
+boxes = page['rec_boxes']    # np.ndarray shape=(N, 4) 矩形 [x1,y1,x2,y2]
+```
+
+🚨 **字段名注意**（PaddleOCR 3.x）：
+- ✅ `rec_texts` / `rec_scores` / `rec_boxes`（复数）
+- ❌ 不是 `rec_text` / `rec_score` / `rec_box`（老版本）
+
+### 耗时参考
+
+- 初始化 ~5s · 推理 **~25s/单图**（vs RapidOCR ~4s · 慢 6 倍）
+- 细节更准（37℃ 无重复符号、标题不截断）
+
+### 已知问题
+
+- **paddlepaddle 3.3.x 不能用** —— 必须 3.2.2
+- `ReduceMeanCheckIfOneDNNSupport` 警告 = **无害**（OneDNN 路径正常工作日志）
+- OneDNN 不能简单关掉（PaddleX 强制用）
+
+## 输出格式（Frozen Facts JSON · 14 字段）
 
 ```json
 {
@@ -92,51 +107,39 @@ metadata:
   "audience": "...",
   "signer": "...",
   "screenshot_source": "qqbot/downloads/...",
-  "platform_comments_excluded": ["...", "..."],
-  "ocr_confidence": {
-    "high": ["title", "disaster_type", "publisher"],
-    "low": ["content"]
-  }
+  "platform_comments_excluded": [],
+  "ocr_confidence": {"high": ["title"], "low": ["content"]}
 }
 ```
 
-🚨 **铁律**：
-- 字段名严格按主 skill 字段定义（14 个必填字段）
-- 时间格式 ISO 8601 + 时区（如 `2026-08-01T18:30:00+08:00`）
-- 文本字段不修改、不补全、不猜测
-- 模糊字段标 `null` 或 `[无法确认]`
-- **必带** `platform_comments_excluded`（即使为空数组 `[]`）
-- **必带** `ocr_confidence`（标注每个字段置信度）
+🚨 **铁律**：时间 ISO 8601+时区 · 模糊字段 `null` 或 `[无法确认]` · 必带 `platform_comments_excluded` + `ocr_confidence`。
 
 ## SOP-A · 强制重新读图（最重要）
 
-- 每次输出 JSON 前，**必须**调 `read` 工具重新读图（**不依赖短时记忆**）
-- 重新读图后**逐字校验**所有 14 个字段
-- 输出前，对照"读图结果"与"JSON 字段"——不一致就重读
+每次输出 JSON 前**必须**重新跑 OCR，**不依赖短时记忆**。
 
 ## SOP-B · 二次怀疑机制
 
-每报告一个字段前，自问：
+每报告一个字段前自问：
 
-1. **"我是真的从图里看到的吗？还是我假设的？"**
-2. **"我用 `read` 工具重新读图了吗？"**
+1. **"我是真的从图里读到的吗？还是我猜的？"**
+2. **"OCR 置信度 < 0.85 怎么办？"**
 
-🚨 **铁律**：2 问里有 1 个没把握 → **不写入 JSON**，重新核对。
+🚨 1 个没把握 → 不写入 JSON。置信度 < 0.85 → 标 `low` 或 `[无法确认]`。
 
 ## SOP-C · 雪球效应熔断器
 
-- 一旦发现**自己开始找证据支持假设**（而非客观比对），立即停止
+- 一旦**找证据支持假设**（而非客观比对），立即停止
 - 触发关键词警觉 ⚠️："果然……""确实……""这正是……"
-- 重读图像 + 重新列差异，**不预设结论**
 
 ## 触发场景
 
 - **由主 skill `weather-warn-pipeline` 派发**（`taskName="ocr-{warn_id}"`）
-- ❌ **不**直接被老板调用
-- ❌ **不**直接接收老板的预警截图（截图由主 agent 转发）
+- ❌ **不**直接被老板调用 / ❌ **不**直接接收截图
 
 ## 修订记录
 
 | 日期 | 修订 | 触发 |
 |------|------|------|
-| 2026-08-01 | 初版：从原 weather-warn-audit 剥离 OCR + 读图 SOP + Frozen Facts 生成；作为子 skill 由主 skill 派发；输出 14 字段 JSON 含 `platform_comments_excluded` + `ocr_confidence` | 老板指令：拆分 audit skill，OCR 独立 |
+| 2026-08-01 19:21 | **切换 OCR 工具**：RapidOCR → PaddleOCR 3.x；新增安装/调用/字段名规范；强调 `paddlepaddle==3.2.2` workaround | 老板指令："修改 skill，使用 paddleocr 识图" |
+| 2026-08-01 | 初版：基于 RapidOCR + MiniMax-VL | 老板指令：拆分 audit skill |
